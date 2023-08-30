@@ -31,29 +31,34 @@ bashget() {
 
 set -xeo pipefail
 
-# PM detect
-if (which apt-get >/dev/null); then
-  PM=apt-get
-  lsbd=$(lsb_release -d)
-  case "$lsbd" in
-  *Debian*)
-    LSB=debian
-    ;;
-  *Ubuntu*)
-    LSB=ubuntu
-    ;;
-  *)
-    echo "Unable to detect your lsb release."
-    LSB=unknown
-    ;;
-  esac
-elif (which yum >/dev/null); then
-  PM=yum
-fi
-if [ "$PM" == "" ]; then
-  echo "Nither apt-get nor yum is found."
-  exit 1
-fi
+function PMDetect() {
+  if (which apt-get >/dev/null); then
+    PM=apt-get
+    if ! [ "$(command -v lsb_release)" ]; then
+      LSB=unknown
+      return
+    fi
+    lsbd=$(lsb_release -d)
+    case "$lsbd" in
+    *Debian*)
+      LSB=debian
+      ;;
+    *Ubuntu*)
+      LSB=ubuntu
+      ;;
+    *)
+      echo "Unable to detect your lsb release."
+      LSB=unknown
+      ;;
+    esac
+  elif (which yum >/dev/null); then
+    PM=yum
+  fi
+  if [ "$PM" == "" ]; then
+    echo "Nither apt-get nor yum is found."
+    exit 1
+  fi
+}
 
 end="\033[0m"
 blue="\033[0;34m"
@@ -76,14 +81,20 @@ function installPackage() {
 }
 
 function installPackageYumOnly() {
-  if [ $PM == "yum" ]; then
+  if [ "$PM" == "yum" ]; then
     yum install -y "$@"
   fi
 }
 
 function installPackageAptOnly() {
-  if [ $PM == "apt-get" ]; then
+  if [ "$PM" == "apt-get" ]; then
     apt-get install -y "$@"
+  fi
+}
+
+function purgePackageAptOnly() {
+  if [ "$PM" == "apt-get" ]; then
+    apt-get purge -y "$@"
   fi
 }
 
@@ -92,9 +103,9 @@ function suckIPv6() {
     echo -e "\nNot in CN, not disabling IPV6, return..."
     return
   fi
-  if [ $PM == "apt-get" ]; then
+  if [ "$PM" == "apt-get" ]; then
     echo 'Acquire::ForceIPv4 "true";' >/etc/apt/apt.conf.d/99force-ipv4
-  elif [ $PM == "yum" ]; then
+  elif [ "$PM" == "yum" ]; then
     sed -i 's/^ip_resolve/#ip_resolve/g' /etc/yum.conf
     echo 'ip_resolve=4' >>/etc/yum.conf
   fi
@@ -121,17 +132,22 @@ function fastDebMirror() {
 }
 
 function updatePMMetadata() {
-  if [ $PM == "apt-get" ]; then
+  if [ "$PM" == "apt-get" ]; then
     fastDebMirror
     apt-get update
-  elif [ $PM == "yum" ]; then
+  elif [ "$PM" == "yum" ]; then
     yum makecache
   fi
 }
 
 function importSSHKeys() {
   [ -d ~/.ssh ] || mkdir ~/.ssh
-  mkdir -p ~/.ssh/ && curl -L github.com/starduster.keys >>~/.ssh/authorized_keys
+  ensureLoc
+  if [ "$LOC" == CN ]; then
+    curl -L https://www.starduster.me/ssh.key >>~/.ssh/authorized_keys
+  else
+    curl -L https://github.com/starduster.keys >>~/.ssh/authorized_keys
+  fi
   chmod 600 ~/.ssh/authorized_keys
 }
 
@@ -143,10 +159,16 @@ function changeSSHPort() {
   echo "Port $PORT" >>/etc/ssh/sshd_config
 }
 
+function changePassword() {
+  echo "$(whoami):fai" | chpasswd
+}
+
 function disableSSHRootLoginWithPassword() {
   sed -i 's/^PermitRootLogin/#PermitRootLogin/g' /etc/ssh/sshd_config
-  echo '# sei init disabled root login with password' >>/etc/ssh/sshd_config
-  echo "PermitRootLogin without-password" >>/etc/ssh/sshd_config
+  {
+    echo '# sei init disabled root login with password'
+    echo "PermitRootLogin without-password"
+  } >>/etc/ssh/sshd_config
 }
 
 function enhanceSSHConnection() {
@@ -172,10 +194,17 @@ function installOmz() {
   fi
   curl https://git.atto.town/public-mirrors/oh-my-zsh/-/raw/master/tools/install.sh | grep -v 'env zsh' | bash
   [ $SEI_BACKUP ] && cp ~/.zshrc ~/.seinit/dot_zshrc
+  wget https://raw.githubusercontent.com/StarDuster/init.sh/master/dotfiles/.zshrc -O ~/.zshrc
+  wget https://raw.githubusercontent.com/StarDuster/Personal-script/master/stardust.zsh-theme -O ~/.oh-my-zsh/themes/stardust.zsh-theme
 }
 
 function updateVimRc() {
-  curl https://oott123.urn.cx/seinit/.vimrc >~/.vimrc
+  ensureLoc
+  if [ "$LOC" == CN ]; then
+    curl https://raw.githubusercontent.com/StarDuster/init.sh/master/dotfiles/.vimrc >~/.vimrc
+  else
+    curl https://cdn.jsdelivr.net/gh/starduster/init.sh@master/dotfiles/.vimrc >~/.vimrc
+  fi
 }
 
 function updateSystemVimRc() {
@@ -187,6 +216,12 @@ function updateSystemVimRc() {
   } >>/etc/vim/vimrc.local
 }
 
+function ensureLocale() {
+  LC_ALL=$(locale -a | grep -ix 'c.utf-\?8' || echo C)
+  export LC_ALL
+  localedef -i en_US -f UTF-8 en_US.UTF-8
+}
+
 function help() {
   echo -e "# ${blue}installPackage${end} - Install package"
   echo -e "# ${blue}suckIPv6${end} - Disable IPv6"
@@ -194,6 +229,7 @@ function help() {
   echo -e "# ${blue}importSSHKeys${end} - Import SSH keys"
   echo -e "# ${blue}installByobu${end} - Install byobu"
   echo -e "# ${blue}changeSSHPort 33${end} - Change SSH port to 33"
+  echo -e "# ${blue}changePassword${end} - Change password to fai"
   echo -e "# ${blue}disableSSHRootLoginWithPassword${end} - Disable SSH root login with password"
   echo -e "# ${blue}enhanceSSHConnection${end} - Enable SSH TCPKeepAlive stuff"
   echo -e "# ${blue}restartSSHService${end} - Restart SSH server"
@@ -201,64 +237,43 @@ function help() {
   echo -e "$ ${blue}updateVimRc${end} - Update .vimrc"
 }
 
-if [ "$SEI_SHELL" == "" ]; then
-  # ...
-  SEI_BACKUP=yes
-  if [ $SEI_BACKUP ]; then
-    [ -d ~/.seinit ] || mkdir ~/.seinit
-    chmod 700 ~/.seinit
+SEI_BACKUP=yes
+if [ $SEI_BACKUP ]; then
+  [ -d ~/.seinit ] || mkdir ~/.seinit
+  chmod 700 ~/.seinit
+fi
+if [ "$(whoami)" == "root" ]; then
+  suckIPv6
+  PMDetect
+  updatePMMetadata
+  if [ "$LSB" == "ubuntu" ]; then
+    purgePackageAptOnly needrestart snapd netplan
   fi
-  if [ "$(whoami)" == "root" ]; then
-    if [ "$SEI_FUCK_SSH" == "" ]; then
-      read -p "May I FUCK your ssh server? [y/N]" -r
-      if [[ $REPLY =~ ^[Yy]$ ]]; then
-        SEI_FUCK_SSH=yes
-      fi
-    fi
-    if [ "$SEI_FUCK_SSH" == "yes" ]; then
-      [ $SEI_BACKUP ] && cp /etc/ssh/sshd_config ~/.seinit/sshd_config
-      # changeSSHPort 33
-      disableSSHRootLoginWithPassword
-      enhanceSSHConnection
-      restartSSHService
-    fi
-    suckIPv6
-    updatePMMetadata
-    installPackageYumOnly epel-release
-    # installByobu
-    installPackage zsh wget curl git htop ncdu vim rsync cron iftop tee tree screen vnstat
-    updateSystemVimRc
-    if (which update-alternatives >/dev/null); then
-      update-alternatives --set editor /usr/bin/vim.basic
-    fi
-    if [ -f /bin/zsh ]; then
-      usermod -s /bin/zsh root
-    fi
-    importSSHKeys
-    [ -f /etc/default/motd-news ] && sed -i 's/ENABLED=./ENABLED=0/' /etc/default/motd-news
-    [ -d /etc/update-motd.d ] && chmod o-x,g-x,a-x /etc/update-motd.d/*
-    installPackageAptOnly build-essential bat ripgrep fzf autojump tcpdump netcat iperf3 man-db rsyslog mtr-tiny
-    installPackageAptOnly software-properties-common || true
-    installPackageAptOnly python-software-properties || true
-    installOmz
-    set +x
-    echo "--- Seinit finish its work now. ---"
-  else
-    installOmz
+  installPackageYumOnly epel-release
+  installPackage zsh wget curl git htop ncdu vim rsync cron iftop tree screen vnstat locales iptables
+  ensureLocale
+  SEI_FUCK_SSH=yes
+  if [ "$SEI_FUCK_SSH" == "yes" ]; then
+    [ $SEI_BACKUP ] && cp /etc/ssh/sshd_config ~/.seinit/sshd_config
+    disableSSHRootLoginWithPassword
+    enhanceSSHConnection
+    restartSSHService
   fi
-elif [ "$SEI_SHELL" == "1" ]; then
+  updateSystemVimRc
+  if (which update-alternatives >/dev/null); then
+    update-alternatives --set editor /usr/bin/vim.basic
+  fi
+  importSSHKeys
+  [ -f /etc/default/motd-news ] && sed -i 's/ENABLED=./ENABLED=0/' /etc/default/motd-news
+  [ -d /etc/update-motd.d ] && chmod o-x,g-x,a-x /etc/update-motd.d/*
+  installPackageAptOnly build-essential bat ripgrep fzf autojump tcpdump iperf3 man-db rsyslog mtr-tiny expect whois
+  installPackageAptOnly software-properties-common || true
+  installPackageAptOnly python-software-properties || true
+  changePassword
+  installOmz
   set +x
-  set +e
-  if [ -f ~/.bashrc ]; then
-    source ~/.bashrc
-  fi
-  PS1="[\u@\h \[\033[41m\]SEI_SHELL\[\033[0m\]]\$> "
-  clear
-  echo ""
-  help
-  echo ""
-  echo "Type [help] to see what you can do"
-  echo "Type [exit] to exit sei shell"
-  echo ""
-  cd /tmp
+  echo "--- Seinit finish its work now. ---"
+else
+  chsh -s /usr/bin/zsh
+  installOmz
 fi
