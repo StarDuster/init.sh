@@ -254,10 +254,15 @@ if [ "$(whoami)" == "root" ]; then
   ensureLocale
   SEI_FUCK_SSH=yes
   if [ "$SEI_FUCK_SSH" == "yes" ]; then
-    [ $SEI_BACKUP ] && cp /etc/ssh/sshd_config ~/.seinit/sshd_config
-    disableSSHRootLoginWithPassword
-    enhanceSSHConnection
-    restartSSHService
+    if [ -f "/etc/ssh/sshd_config" ]; then
+      [ $SEI_BACKUP ] && cp /etc/ssh/sshd_config ~/.seinit/sshd_config
+        disableSSHRootLoginWithPassword
+        enhanceSSHConnection
+        restartSSHService
+    else
+      echo -e "\033[0;31m/etc/ssh/sshd_config does not exist. Please install openssh server.\033[0m"
+      return
+    fi
   fi
   updateSystemVimRc
   if (which update-alternatives >/dev/null); then
