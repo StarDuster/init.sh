@@ -11,7 +11,7 @@ COMPLETION_WAITING_DOTS="true"
 # DISABLE_UNTRACKED_FILES_DIRTY="true"
 # HIST_STAMPS="mm/dd/yyyy"
 
-plugins=(git autojump)
+plugins=(git autojump sudo)
 source $ZSH/oh-my-zsh.sh
 
 alias qping='ping -i 0.1'
