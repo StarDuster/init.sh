@@ -250,7 +250,7 @@ if [ "$(whoami)" == "root" ]; then
     purgePackageAptOnly needrestart snapd netplan
   fi
   installPackageYumOnly epel-release
-  installPackage zsh wget curl git htop ncdu vim rsync cron iftop tree screen vnstat locales iptables
+  installPackage zsh fzf nethogs wget curl git htop ncdu vim rsync cron iftop tree screen vnstat locales iptables
   ensureLocale
   SEI_FUCK_SSH=yes
   if [ "$SEI_FUCK_SSH" == "yes" ]; then
