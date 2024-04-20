@@ -275,7 +275,7 @@ if [ "$(whoami)" == "root" ]; then
   importSSHKeys
   [ -f /etc/default/motd-news ] && sed -i 's/ENABLED=./ENABLED=0/' /etc/default/motd-news
   [ -d /etc/update-motd.d ] && chmod o-x,g-x,a-x /etc/update-motd.d/*
-  installPackageAptOnly build-essential bat ripgrep fzf autojump tcpdump iperf3 man-db rsyslog mtr-tiny expect whois
+  installPackageAptOnly build-essential bat eatmydata ripgrep fzf autojump tcpdump iperf3 man-db rsyslog mtr-tiny expect whois
   installPackageAptOnly software-properties-common || true
   installPackageAptOnly python-software-properties || true
   changePassword
