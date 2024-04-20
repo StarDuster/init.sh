@@ -188,6 +188,10 @@ function restartSSHService() {
 }
 
 function installOmz() {
+  if [ -d ~/.oh-my-zsh ]; then
+    echo -e "oh-my-zsh exists, skip...\n"
+    return 0
+  fi
   ensureLoc
   if [ "$LOC" == CN ]; then
     export REMOTE=https://git.atto.town/public-mirrors/oh-my-zsh.git
