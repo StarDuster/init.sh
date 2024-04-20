@@ -8,15 +8,6 @@ Use at your own risk.
 
 ## Usage
 
-China 
-
-```bash
-wget https://cdn.jsdelivr.net/gh/starduster/init.sh@master/init.sh -O init.sh
-bash -x init.sh
-```
-
-Oversea
-
 ```bash
 wget https://raw.githubusercontent.com/StarDuster/init.sh/master/init.sh -O init.sh
 bash -x init.sh
