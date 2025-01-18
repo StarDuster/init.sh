@@ -92,9 +92,19 @@ function installPackageAptOnly() {
   fi
 }
 
+function purgeIfInstalled() {
+  local failed=0
+  for pkg in "$@"; do
+    if dpkg -s "$pkg" >/dev/null 2>&1; then
+      apt-get purge -y "$pkg" || { echo "Error purging $pkg" >&2; failed=1; }
+    fi
+  done
+  return $failed
+}
+
 function purgePackageAptOnly() {
   if [ "$PM" == "apt-get" ]; then
-    apt-get purge -y "$@"
+    purgeIfInstalled "$@"
   fi
 }
 
